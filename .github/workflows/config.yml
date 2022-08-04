@@ -1,34 +1,15 @@
-name: Ruby
-
-on:
-  push:
-    branches: [ master ]
-  pull_request:
-    branches: [ master ]
-
+name: Snyk Security Scan
+on: pull_request
 jobs:
-  build:
-
+  security:
     runs-on: ubuntu-latest
-
     steps:
-    - uses: actions/checkout@v2
-    - name: Set up Ruby 2.7.1
-      uses: actions/setup-ruby@v1
-      with:
-        ruby-version: 2.7.x
-    - name: Build and test with Rake
-      run: |
-        gem install bundler
-        bundle install --jobs 4 --retry 3
-        
     - uses: actions/checkout@master
-    - name: Commit files
-      run: |
-        git config --global user.email "you@example.com"
-        git config --global user.name "Github action"
-        git commit -m "Github action to update bundle" -a
-    - name: Push changes
-      uses: ad-m/github-push-action@master
+    - name: Run Snyk to check for vulnerabilities
+      uses: snyk/actions/python@master
+      env:
+        COMMAND: "python setup.py install"
+        SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
       with:
-        github_token: ${{ secrets.SNYK_TOKEN }}
+        args: --file=setup.py
+				
