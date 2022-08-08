@@ -1,34 +1,51 @@
-name: Ruby
+name: "Snyk Platform Scan"
 
-on:
-  push:
-    branches: [ master ]
-  pull_request:
-    branches: [ master ]
+# This can be changed based on the need either push or pull request
+# The SNYK_TOKEN varible needs to be set in your environment through secrets
+# The snyk container test you can replace with the name of the image you want to test
+
+on: [push, pull_request]
 
 jobs:
-  build:
-
+  Pipeline-Job:
+    # Configure Environment
+    name: 'Snyk Platform Scan'
     runs-on: ubuntu-latest
-
+    env: 
+      SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+       
     steps:
-    - uses: actions/checkout@v2
-    - name: Set up Ruby 2.7.1
-      uses: actions/setup-ruby@v1
-      with:
-        ruby-version: 2.7.x
-    - name: Build and test with Rake
+    # Checkout Code
+    - name: Checkout Code
+      uses: actions/checkout@v1
+
+    # Install and Authenticate to Snyk
+    - name: Install Snyk & Authenticate
       run: |
-        gem install bundler
-        bundle install --jobs 4 --retry 3
-        
-    - uses: actions/checkout@master
-    - name: Commit files
+         sudo npm install -g snyk
+         sudo npm install -g snyk-to-html
+         snyk auth ${SNYK_TOKEN}
+    # Run Snyk Code
+    - name: Run Snyk
       run: |
-        git config --global user.email "you@example.com"
-        git config --global user.name "Github action"
-        git commit -m "Github action to update bundle" -a
-    - name: Push changes
-      uses: ad-m/github-push-action@master
+         snyk code test --sarif  > results_code.sarif || true
+         snyk-to-html -i results_code.sarif -o results_code.html || true
+         snyk monitor --all-projects --json | snyk-to-html -o results_sca.html || true
+         snyk iac test . --json | snyk-to-html -o results_iac.html || true
+         snyk container test <container-name> --json | snyk-to-html -o results_container.html || true
+      continue-on-error: true
+    - name: Upload SARIF file
+      uses: github/codeql-action/upload-sarif@v2
       with:
-        github_token: ${{ secrets.SNYK_TOKEN }}
+        # Path to SARIF file relative to the root of the repository
+        sarif_file: results_code.sarif
+    - name: Archive Snyk Code Coverage Results
+      uses: actions/upload-artifact@v2
+      with:
+          name: Archive Snyk Code Scan Results
+          path: | 
+            results_code.sarif
+            results_code.html
+            results_iac.html
+            results_sca.html
+            results_container.html
